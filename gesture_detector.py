@@ -1,0 +1,94 @@
+import cv2
+import mediapipe as mp
+import time
+
+def run_gesture_detection(queue, stop_event):
+    mp_hands = mp.solutions.hands
+    mp_draw = mp.solutions.drawing_utils
+    hands = mp_hands.Hands(max_num_hands=1, min_detection_confidence=0.7)
+
+    cap = cv2.VideoCapture(0)
+    cv2.namedWindow("Hand Gesture", cv2.WINDOW_NORMAL)
+    cv2.resizeWindow("Hand Gesture", 480, 360)
+
+    last_gesture = None
+    last_time = 0
+    gesture_count = 0
+    gesture_timeout = 1.0
+
+    def classify_gesture(landmarks):
+        tips_ids = [4, 8, 12, 16, 20]
+        fingers = []
+        if landmarks[tips_ids[0]].x < landmarks[tips_ids[0] - 1].x:
+            fingers.append(1)
+        else:
+            fingers.append(0)
+        for id in range(1, 5):
+            if landmarks[tips_ids[id]].y < landmarks[tips_ids[id] - 2].y:
+                fingers.append(1)
+            else:
+                fingers.append(0)
+        if fingers == [0, 0, 0, 0, 0]:
+            return "Fist"
+        elif fingers == [1, 1, 1, 1, 1]:
+            return "Open Palm"
+        else:
+            return "Unknown"
+
+    def trigger_action(count):
+        print(f"Gesture: {count} → sending to HUD")
+        queue.put(count)
+
+    while not stop_event.is_set():
+        success, frame = cap.read()
+        if not success:
+            break
+
+        frame = cv2.flip(frame, 1)
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        result = hands.process(rgb)
+        current_time = time.time()
+
+        if result.multi_hand_landmarks:
+            for hand_landmarks in result.multi_hand_landmarks:
+                mp_draw.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+                gesture = classify_gesture(hand_landmarks.landmark)
+
+                if gesture == "Fist":
+                    if last_gesture != "Fist":
+                        gesture_count += 1
+                        last_time = current_time
+                        print(f"Detected Fist {gesture_count}x")
+                    last_gesture = "Fist"
+                else:
+                    last_gesture = gesture
+
+        if gesture_count > 0 and (current_time - last_time) > gesture_timeout:
+            trigger_action(gesture_count)
+            gesture_count = 0
+
+        cv2.imshow("Hand Gesture", frame)
+        key = cv2.waitKey(1) & 0xFF
+        if key == ord('q'):
+            stop_event.set()
+            break
+
+    cap.release()
+    cv2.destroyAllWindows()
+
+
+# === main.py ===
+from multiprocessing import Process, Queue, Event
+from gesture_detector import run_gesture_detection
+from hud_display import run_hud
+
+if __name__ == "__main__":
+    queue = Queue()
+    stop_event = Event()
+
+    p1 = Process(target=run_gesture_detection, args=(queue, stop_event))
+    p2 = Process(target=run_hud, args=(queue, stop_event))
+    p1.start()
+    p2.start()
+    p1.join()
+    p2.join()
