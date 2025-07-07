@@ -33,8 +33,8 @@ def run_hud(queue, stop_event):
     def draw_music_hud():
         hud_width = 440 * SCALE // 2
         hud_height = 40 * SCALE // 2
-        hud_x = WIDTH - hud_width - 20
-        hud_y = 10  # Top right of windshield
+        hud_x = 20  # Top left of windshield
+        hud_y = 10
         pygame.draw.rect(screen, (20, 20, 20), (hud_x, hud_y, hud_width, hud_height), border_radius=12)
         status = "\u25b6\ufe0f" if playing else "\u23f8\ufe0f"
         title = f"{status} {songs[current_song]}"
@@ -69,6 +69,8 @@ def run_hud(queue, stop_event):
         elif command == 3:
             current_song = (current_song - 1) % len(songs)
             command_display = "Previous Song"
+        else:
+            command_display = "Unknown Command"
         command_timestamp = time.time()
         last_command_time = time.time()
 
