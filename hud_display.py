@@ -16,6 +16,8 @@ def run_hud(queue, stop_event):
 
     font = pygame.font.SysFont("Arial", 24 * SCALE // 2)
     command_font = pygame.font.SysFont("Arial", 36 * SCALE // 2)
+    speed_font = pygame.font.SysFont("Arial", 18 * SCALE // 2)
+    speed_unit_font = pygame.font.SysFont("Arial", 14 * SCALE // 2)
     GREEN = (0, 255, 0)
     WHITE = (255, 255, 255)
 
@@ -24,6 +26,7 @@ def run_hud(queue, stop_event):
     current_song = 0
     playing = True
     last_command_time = 0
+    speed = 65  # placeholder speed value
 
     command_display = None
     command_timestamp = 0
@@ -40,6 +43,17 @@ def run_hud(queue, stop_event):
         title = f"{status} {songs[current_song]}"
         text = font.render(title, True, GREEN)
         screen.blit(text, (hud_x + 10, hud_y + 5))
+
+    def draw_speedometer():
+        center_x = (127 + (316 - 127) // 2) * SCALE
+        center_y = 160 * SCALE
+        radius = 25
+        pygame.draw.circle(screen, (30, 30, 30), (center_x, center_y), radius)
+        pygame.draw.circle(screen, GREEN, (center_x, center_y), radius, 2)
+        speed_text = speed_font.render(str(speed), True, WHITE)
+        unit_text = speed_unit_font.render("km/h", True, GREEN)
+        screen.blit(speed_text, (center_x - speed_text.get_width() // 2, center_y - 12))
+        screen.blit(unit_text, (center_x - unit_text.get_width() // 2, center_y + 5))
 
     def draw_command_overlay():
         nonlocal command_display, command_timestamp
@@ -78,6 +92,7 @@ def run_hud(queue, stop_event):
         screen.blit(bg_image, (0, 0))
 
         draw_music_hud()
+        draw_speedometer()
         draw_command_overlay()
 
         while not queue.empty():
