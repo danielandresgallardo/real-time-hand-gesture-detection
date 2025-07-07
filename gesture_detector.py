@@ -16,6 +16,9 @@ def run_gesture_detection(queue, stop_event):
     gesture_count = 0
     gesture_timeout = 1.0
 
+    open_palm_duration = 0
+    in_command_mode = False
+
     def classify_gesture(landmarks):
         tips_ids = [4, 8, 12, 16, 20]
         fingers = []
@@ -49,23 +52,43 @@ def run_gesture_detection(queue, stop_event):
         result = hands.process(rgb)
         current_time = time.time()
 
+        gesture = "Unknown"
+
         if result.multi_hand_landmarks:
             for hand_landmarks in result.multi_hand_landmarks:
                 mp_draw.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
                 gesture = classify_gesture(hand_landmarks.landmark)
 
-                if gesture == "Fist":
-                    if last_gesture != "Fist":
-                        gesture_count += 1
-                        last_time = current_time
-                        print(f"Detected Fist {gesture_count}x")
-                    last_gesture = "Fist"
-                else:
-                    last_gesture = gesture
+                if not in_command_mode:
+                    if gesture == "Open Palm":
+                        open_palm_duration += 1
+                    else:
+                        open_palm_duration = 0
+                    if open_palm_duration >= 30:  # ~1 seconds at 30fps
+                        in_command_mode = True
+                        print("Palm detected. Waiting for command...")
+                        open_palm_duration = 0
+                elif in_command_mode:
+                    if gesture == "Fist":
+                        if last_gesture != "Fist":
+                            gesture_count += 1
+                            last_time = current_time
+                            print(f"Detected Fist {gesture_count}x")
+                        last_gesture = "Fist"
+                    else:
+                        last_gesture = gesture
 
-        if gesture_count > 0 and (current_time - last_time) > gesture_timeout:
+        if in_command_mode and gesture_count > 0 and (current_time - last_time) > gesture_timeout:
             trigger_action(gesture_count)
             gesture_count = 0
+            in_command_mode = False
+            open_palm_duration = 0
+            print("Returning to palm check mode")
+
+        if not in_command_mode:
+            cv2.putText(frame, "Show open palm for 1s to begin", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+        else:
+            cv2.putText(frame, "Waiting for command...", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
         cv2.imshow("Hand Gesture", frame)
         key = cv2.waitKey(1) & 0xFF
@@ -75,20 +98,3 @@ def run_gesture_detection(queue, stop_event):
 
     cap.release()
     cv2.destroyAllWindows()
-
-
-# === main.py ===
-from multiprocessing import Process, Queue, Event
-from gesture_detector import run_gesture_detection
-from hud_display import run_hud
-
-if __name__ == "__main__":
-    queue = Queue()
-    stop_event = Event()
-
-    p1 = Process(target=run_gesture_detection, args=(queue, stop_event))
-    p2 = Process(target=run_hud, args=(queue, stop_event))
-    p1.start()
-    p2.start()
-    p1.join()
-    p2.join()
