@@ -63,10 +63,12 @@ def run_gesture_detection(queue, stop_event):
                 gesture = classify_gesture(hand_landmarks.landmark)
 
                 if gesture == "Index Point":
-                    index_tip = hand_landmarks.landmark[8]  # Index finger tip
-                    x = int(index_tip.x * 463)
-                    y = int(index_tip.y * 260)
-                    queue.put(("cursor", x, y))
+                    index_tip = hand_landmarks.landmark[8]
+                    if index_tip.x >= 0.5:  # Only respond if finger is in the right half
+                        norm_x = (index_tip.x - 0.5) * 2  # Map 0.5–1.0 → 0–1
+                        x = int(norm_x * 463)
+                        y = int(index_tip.y * 260)
+                        queue.put(("cursor", x, y))
 
                 if not in_command_mode:
                     if gesture == "Open Palm":
