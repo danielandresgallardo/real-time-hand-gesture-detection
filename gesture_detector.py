@@ -1,6 +1,7 @@
 import cv2
 import mediapipe as mp
 import time
+import math
 
 def run_gesture_detection(queue, stop_event):
     mp_hands = mp.solutions.hands
@@ -19,8 +20,11 @@ def run_gesture_detection(queue, stop_event):
     open_palm_duration = 0
     in_command_mode = False
 
+    pointing_start_time = 0
+    measuring_pointing = False
+
     def classify_gesture(landmarks):
-        tips_ids = [4, 8, 12, 16, 20]
+        tips_ids = [4, 8, 12, 16, 20]  # Thumb, Index, Middle, Ring, Pinky
         fingers = []
         if landmarks[tips_ids[0]].x < landmarks[tips_ids[0] - 1].x:
             fingers.append(1)
@@ -35,12 +39,23 @@ def run_gesture_detection(queue, stop_event):
             return "Fist"
         elif fingers == [1, 1, 1, 1, 1]:
             return "Open Palm"
+        elif fingers == [0, 1, 0, 0, 0]:
+            return "Index Point"
         else:
             return "Unknown"
 
     def trigger_action(count):
         print(f"Gesture: {count} → sending to HUD")
         queue.put(count)
+
+    def calculate_angle(landmarks):
+        base = landmarks[5]  # Index finger base (MCP)
+        tip = landmarks[8]   # Index finger tip
+        dx = tip.x - base.x
+        dy = base.y - tip.y  # Invert Y axis for screen coordinate
+        angle = math.degrees(math.atan2(dy, dx))
+        angle = (angle + 360) % 360
+        return angle
 
     while not stop_event.is_set():
         success, frame = cap.read()
@@ -59,12 +74,27 @@ def run_gesture_detection(queue, stop_event):
                 mp_draw.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
                 gesture = classify_gesture(hand_landmarks.landmark)
 
+                if gesture == "Index Point":
+                    if not measuring_pointing:
+                        if pointing_start_time == 0:
+                            pointing_start_time = current_time
+                        elif current_time - pointing_start_time > 1.0:
+                            measuring_pointing = True
+                            print("Measuring direction...")
+                    if measuring_pointing:
+                        angle = calculate_angle(hand_landmarks.landmark)
+                        cv2.putText(frame, f"Angle: {int(angle)} deg", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+                        print(f"Angle: {int(angle)} degrees")
+                else:
+                    pointing_start_time = 0
+                    measuring_pointing = False
+
                 if not in_command_mode:
                     if gesture == "Open Palm":
                         open_palm_duration += 1
                     else:
                         open_palm_duration = 0
-                    if open_palm_duration >= 30:  # ~1 seconds at 30fps
+                    if open_palm_duration >= 30:
                         in_command_mode = True
                         print("Palm detected. Waiting for command...")
                         open_palm_duration = 0
