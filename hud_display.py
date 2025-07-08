@@ -1,6 +1,5 @@
 import pygame
 import platform
-import os
 import time
 
 def run_hud(queue, stop_event):
@@ -30,23 +29,24 @@ def run_hud(queue, stop_event):
 
     command_display = None
     command_timestamp = 0
+    cursor_pos = None
 
     clock = pygame.time.Clock()
 
     def draw_music_hud():
         hud_width = 440 * SCALE // 2
         hud_height = 40 * SCALE // 2
-        hud_x = 20  # Top left of windshield
+        hud_x = 20
         hud_y = 10
         pygame.draw.rect(screen, (20, 20, 20), (hud_x, hud_y, hud_width, hud_height), border_radius=12)
-        status = "\u25b6\ufe0f" if playing else "\u23f8\ufe0f"
+        status = "▶" if playing else "⏸"
         title = f"{status} {songs[current_song]}"
         text = font.render(title, True, GREEN)
         screen.blit(text, (hud_x + 10, hud_y + 5))
 
     def draw_speedometer():
         center_x = (127 + (316 - 127) // 2) * SCALE
-        center_y = 160 * SCALE
+        center_y = 150 * SCALE
         radius = 25
         pygame.draw.circle(screen, (30, 30, 30), (center_x, center_y), radius)
         pygame.draw.circle(screen, GREEN, (center_x, center_y), radius, 2)
@@ -63,15 +63,26 @@ def run_hud(queue, stop_event):
         if elapsed > 1.0:
             command_display = None
             return
-        alpha = 255 * (1.0 - abs(elapsed - 0.5) * 2)  # Fade in/out over 1 second
+        alpha = 255 * (1.0 - abs(elapsed - 0.5) * 2)
         alpha = max(0, min(255, int(alpha)))
         overlay_surface = command_font.render(command_display, True, WHITE)
         overlay_surface.set_alpha(alpha)
         overlay_rect = overlay_surface.get_rect(center=(WIDTH // 2, 190))
         screen.blit(overlay_surface, overlay_rect)
 
+    def draw_cursor():
+        if cursor_pos:
+            pygame.draw.circle(screen, GREEN, cursor_pos, 8)
+
     def handle_command(command):
-        nonlocal current_song, playing, last_command_time, command_display, command_timestamp
+        nonlocal current_song, playing, last_command_time, command_display, command_timestamp, cursor_pos
+        if isinstance(command, tuple) and command[0] == "cursor":
+            _, x, y = command
+            cursor_pos = (x * SCALE, y * SCALE)
+            return
+
+        cursor_pos = None  # Clear cursor when not pointing
+
         if time.time() - last_command_time < 0.8:
             return
         if command == 1:
@@ -84,7 +95,7 @@ def run_hud(queue, stop_event):
             current_song = (current_song - 1) % len(songs)
             command_display = "Previous Song"
         else:
-            command_display = "Unknown Command"
+            return
         command_timestamp = time.time()
         last_command_time = time.time()
 
@@ -94,6 +105,7 @@ def run_hud(queue, stop_event):
         draw_music_hud()
         draw_speedometer()
         draw_command_overlay()
+        draw_cursor()
 
         while not queue.empty():
             cmd = queue.get()
