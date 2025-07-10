@@ -9,8 +9,8 @@ def run_gesture_detection(queue, stop_event):
     hands = mp_hands.Hands(max_num_hands=1, min_detection_confidence=0.7)
 
     cap = cv2.VideoCapture(0)
-    cv2.namedWindow("Hand Gesture", cv2.WINDOW_NORMAL)
-    cv2.resizeWindow("Hand Gesture", 480, 360)
+    cv2.namedWindow("Hand Gesture", cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)
+    cv2.moveWindow("Hand Gesture", 0, 300)
 
     last_gesture = None
     last_time = 0
