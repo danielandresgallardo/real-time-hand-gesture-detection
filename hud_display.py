@@ -1,6 +1,7 @@
 import pygame
 import platform
 import time
+import math
 
 def run_hud(queue, stop_event):
     pygame.init()
@@ -9,7 +10,6 @@ def run_hud(queue, stop_event):
     screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.NOFRAME)
     pygame.display.set_caption("Futuristic HUD")
 
-    # Load and scale static image
     bg_image = pygame.image.load("car_pov.jpg")
     bg_image = pygame.transform.scale(bg_image, (WIDTH, HEIGHT))
 
@@ -19,17 +19,23 @@ def run_hud(queue, stop_event):
     speed_unit_font = pygame.font.SysFont("Arial", 14 * SCALE // 2)
     GREEN = (0, 255, 0)
     WHITE = (255, 255, 255)
+    BLUE = (0, 128, 255)
 
-    # Music state
     songs = ["Never Gonna Give You Up", "Blinding Lights", "Interstellar OST"]
     current_song = 0
     playing = True
     last_command_time = 0
-    speed = 65  # placeholder speed value
+    speed = 65
 
     command_display = None
     command_timestamp = 0
     cursor_pos = None
+
+    # Circle interaction variables
+    circle_center = (400, 200)
+    circle_radius = 20
+    hover_start_time = None
+    loading_complete = False
 
     clock = pygame.time.Clock()
 
@@ -74,6 +80,40 @@ def run_hud(queue, stop_event):
         if cursor_pos:
             pygame.draw.circle(screen, GREEN, cursor_pos, 8)
 
+    def draw_interactive_circle():
+        nonlocal hover_start_time, loading_complete
+
+        mouse_hovering = cursor_pos and math.dist(cursor_pos, circle_center) <= circle_radius
+
+        # State: not hovering
+        if not mouse_hovering:
+            if loading_complete:
+                loading_complete = False
+            hover_start_time = None
+            pygame.draw.circle(screen, BLUE, circle_center, circle_radius)
+            return
+
+        # State: hovering
+        if hover_start_time is None:
+            hover_start_time = time.time()
+
+        elapsed = time.time() - hover_start_time
+
+        if elapsed >= 2.0:
+            loading_complete = True
+            pygame.draw.circle(screen, GREEN, circle_center, circle_radius)
+        else:
+            pygame.draw.circle(screen, BLUE, circle_center, circle_radius)
+            draw_loading_arc(circle_center, circle_radius + 6, elapsed / 2.0)
+
+    def draw_loading_arc(center, radius, progress):
+        end_angle = int(progress * 360)
+        for angle in range(0, end_angle, 3):
+            radians = math.radians(angle - 90)
+            x = int(center[0] + radius * math.cos(radians))
+            y = int(center[1] + radius * math.sin(radians))
+            pygame.draw.circle(screen, BLUE, (x, y), 2)
+
     def handle_command(command):
         nonlocal current_song, playing, last_command_time, command_display, command_timestamp, cursor_pos
         if isinstance(command, tuple) and command[0] == "cursor":
@@ -106,6 +146,7 @@ def run_hud(queue, stop_event):
         draw_speedometer()
         draw_command_overlay()
         draw_cursor()
+        draw_interactive_circle()
 
         while not queue.empty():
             cmd = queue.get()
