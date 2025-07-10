@@ -99,12 +99,12 @@ def run_hud(queue, stop_event):
 
         elapsed = time.time() - hover_start_time
 
-        if elapsed >= 2.0:
+        if elapsed >= 1.0:
             loading_complete = True
             pygame.draw.circle(screen, GREEN, circle_center, circle_radius)
         else:
             pygame.draw.circle(screen, BLUE, circle_center, circle_radius)
-            draw_loading_arc(circle_center, circle_radius + 6, elapsed / 2.0)
+            draw_loading_arc(circle_center, circle_radius + 6, elapsed / 1.0)
 
     def draw_loading_arc(center, radius, progress):
         end_angle = int(progress * 360)
