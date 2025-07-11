@@ -1,7 +1,6 @@
 import pygame
 import platform
 import time
-import math
 
 def run_hud(queue, stop_event):
     pygame.init()
@@ -17,9 +16,10 @@ def run_hud(queue, stop_event):
     command_font = pygame.font.SysFont("Arial", 36 * SCALE // 2)
     speed_font = pygame.font.SysFont("Arial", 18 * SCALE // 2)
     speed_unit_font = pygame.font.SysFont("Arial", 14 * SCALE // 2)
-    GREEN = (0, 255, 0)
     WHITE = (255, 255, 255)
-    BLUE = (0, 128, 255)
+    GREEN = (0, 255, 0)
+    BLUE = (0, 120, 255)
+    RED = (255, 60, 60)
 
     songs = ["Never Gonna Give You Up", "Blinding Lights", "Interstellar OST"]
     current_song = 0
@@ -31,11 +31,15 @@ def run_hud(queue, stop_event):
     command_timestamp = 0
     cursor_pos = None
 
-    # Circle interaction variables
-    circle_center = (400, 200)
-    circle_radius = 20
-    hover_start_time = None
-    loading_complete = False
+    toggle_circle_pos = (WIDTH - 80, 60)
+    toggle_radius = 20
+    toggle_hover_start = None
+    toggle_ready = True
+    hover_duration = 1.0
+    hover_completed = False
+    modes = ["Eco", "Normal", "Sport"]
+    colors = [GREEN, BLUE, RED]
+    current_mode = 0
 
     clock = pygame.time.Clock()
 
@@ -80,39 +84,58 @@ def run_hud(queue, stop_event):
         if cursor_pos:
             pygame.draw.circle(screen, GREEN, cursor_pos, 8)
 
-    def draw_interactive_circle():
-        nonlocal hover_start_time, loading_complete
+    def draw_toggle_button():
+        nonlocal toggle_hover_start, toggle_ready, current_mode, hover_completed
+        cursor_over = False
+        if cursor_pos:
+            dx = cursor_pos[0] - toggle_circle_pos[0]
+            dy = cursor_pos[1] - toggle_circle_pos[1]
+            dist = (dx**2 + dy**2) ** 0.5
+            if dist <= toggle_radius:
+                cursor_over = True
 
-        mouse_hovering = cursor_pos and math.dist(cursor_pos, circle_center) <= circle_radius
-
-        # State: not hovering
-        if not mouse_hovering:
-            if loading_complete:
-                loading_complete = False
-            hover_start_time = None
-            pygame.draw.circle(screen, BLUE, circle_center, circle_radius)
-            return
-
-        # State: hovering
-        if hover_start_time is None:
-            hover_start_time = time.time()
-
-        elapsed = time.time() - hover_start_time
-
-        if elapsed >= 1.0:
-            loading_complete = True
-            pygame.draw.circle(screen, GREEN, circle_center, circle_radius)
+        if cursor_over:
+            if toggle_ready:
+                if not toggle_hover_start:
+                    toggle_hover_start = time.time()
+                    hover_completed = False
+                elif not hover_completed:
+                    elapsed = time.time() - toggle_hover_start
+                    if elapsed >= hover_duration:
+                        current_mode = (current_mode + 1) % len(modes)
+                        hover_completed = True
+                        toggle_ready = False
+                        toggle_hover_start = None
+                        print(f"Mode switched to {modes[current_mode]}")
+            else:
+                toggle_hover_start = None
         else:
-            pygame.draw.circle(screen, BLUE, circle_center, circle_radius)
-            draw_loading_arc(circle_center, circle_radius + 6, elapsed / 1.0)
+            toggle_hover_start = None
+            toggle_ready = True
+            hover_completed = False
 
-    def draw_loading_arc(center, radius, progress):
-        end_angle = int(progress * 360)
-        for angle in range(0, end_angle, 3):
-            radians = math.radians(angle - 90)
-            x = int(center[0] + radius * math.cos(radians))
-            y = int(center[1] + radius * math.sin(radians))
-            pygame.draw.circle(screen, BLUE, (x, y), 2)
+        color = colors[current_mode]
+        pygame.draw.circle(screen, color, toggle_circle_pos, toggle_radius)
+
+        if toggle_hover_start and not hover_completed:
+            elapsed = time.time() - toggle_hover_start
+            progress = min(elapsed / hover_duration, 1.0)
+            pygame.draw.arc(
+                screen,
+                WHITE,
+                (
+                    toggle_circle_pos[0] - toggle_radius,
+                    toggle_circle_pos[1] - toggle_radius,
+                    toggle_radius * 2,
+                    toggle_radius * 2
+                ),
+                -0.5 * 3.14,
+                (-0.5 + 2 * progress) * 3.14,
+                4
+            )
+
+        label = font.render(modes[current_mode], True, WHITE)
+        screen.blit(label, (toggle_circle_pos[0] - label.get_width() // 2, toggle_circle_pos[1] + toggle_radius + 5))
 
     def handle_command(command):
         nonlocal current_song, playing, last_command_time, command_display, command_timestamp, cursor_pos
@@ -121,7 +144,7 @@ def run_hud(queue, stop_event):
             cursor_pos = (x * SCALE, y * SCALE)
             return
 
-        cursor_pos = None  # Clear cursor when not pointing
+        cursor_pos = None
 
         if time.time() - last_command_time < 0.8:
             return
@@ -145,8 +168,8 @@ def run_hud(queue, stop_event):
         draw_music_hud()
         draw_speedometer()
         draw_command_overlay()
+        draw_toggle_button()
         draw_cursor()
-        draw_interactive_circle()
 
         while not queue.empty():
             cmd = queue.get()
