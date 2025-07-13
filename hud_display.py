@@ -3,7 +3,7 @@ import platform
 import time
 
 class KalmanFilter2D:
-    def __init__(self, process_noise=1e-3, measurement_noise=1e-2):
+    def __init__(self, process_noise=1e-4, measurement_noise=1e-1):
         self.x = 0
         self.y = 0
         self.estimate_error_x = 1
