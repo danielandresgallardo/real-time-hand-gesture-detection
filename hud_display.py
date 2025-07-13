@@ -2,6 +2,27 @@ import pygame
 import platform
 import time
 
+class KalmanFilter2D:
+    def __init__(self, process_noise=1e-3, measurement_noise=1e-2):
+        self.x = 0
+        self.y = 0
+        self.estimate_error_x = 1
+        self.estimate_error_y = 1
+        self.process_noise = process_noise
+        self.measurement_noise = measurement_noise
+
+    def update(self, measured_x, measured_y):
+        kalman_gain_x = self.estimate_error_x / (self.estimate_error_x + self.measurement_noise)
+        kalman_gain_y = self.estimate_error_y / (self.estimate_error_y + self.measurement_noise)
+
+        self.x += kalman_gain_x * (measured_x - self.x)
+        self.y += kalman_gain_y * (measured_y - self.y)
+
+        self.estimate_error_x = (1 - kalman_gain_x) * self.estimate_error_x + abs(self.x) * self.process_noise
+        self.estimate_error_y = (1 - kalman_gain_y) * self.estimate_error_y + abs(self.y) * self.process_noise
+
+        return int(self.x), int(self.y)
+
 def run_hud(queue, stop_event):
     pygame.init()
     SCALE = 2
@@ -30,8 +51,9 @@ def run_hud(queue, stop_event):
     command_display = None
     command_timestamp = 0
     cursor_pos = None
+    kf = KalmanFilter2D()
 
-    toggle_circle_pos = (WIDTH - 80, 60)
+    toggle_circle_pos = (WIDTH - 100, 80)
     toggle_radius = 20
     toggle_hover_start = None
     toggle_ready = True
@@ -141,7 +163,8 @@ def run_hud(queue, stop_event):
         nonlocal current_song, playing, last_command_time, command_display, command_timestamp, cursor_pos
         if isinstance(command, tuple) and command[0] == "cursor":
             _, x, y = command
-            cursor_pos = (x * SCALE, y * SCALE)
+            smooth_x, smooth_y = kf.update(x * SCALE, y * SCALE)
+            cursor_pos = (smooth_x, smooth_y)
             return
 
         cursor_pos = None
